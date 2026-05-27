@@ -1,7 +1,7 @@
 """Tests for audit.py — checksum, AuditConfig, ensure_audit_table, was_deployed, record_deployment."""
 
 import pytest
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 from snow_ops.audit import (
     AuditConfig,
@@ -72,6 +72,14 @@ class TestAuditConfig:
     def test_semicolon_raises(self):
         with pytest.raises(ValueError):
             AuditConfig(table="t; DROP TABLE t--")
+
+    def test_digit_leading_schema_raises(self):
+        with pytest.raises(ValueError):
+            AuditConfig(schema="1schema")
+
+    def test_digit_leading_table_raises(self):
+        with pytest.raises(ValueError):
+            AuditConfig(table="1log")
 
 
 # ── ensure_audit_table ─────────────────────────────────────────────────────────
@@ -202,7 +210,7 @@ class TestRecordDeployment:
     def test_insert_targets_correct_table(self, cursor, config):
         record_deployment(cursor, config, "s.sql", "x")
         sql = cursor.execute.call_args[0][0]
-        assert "INSERT INTO public.audit_log" in sql
+        assert "MERGE INTO public.audit_log" in sql
 
     def test_executed_at_not_in_params(self, cursor, config):
         record_deployment(cursor, config, "s.sql", "x")

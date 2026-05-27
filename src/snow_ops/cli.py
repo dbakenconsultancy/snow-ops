@@ -202,12 +202,13 @@ def main() -> None:
         executed = 0
         for sql_file, sql in rendered.items():
             label = sql_file.relative_to(scripts_dir).as_posix()
-            checksum = checksums[sql_file]
 
-            if audit_config is not None and was_deployed(cursor, audit_config, label, checksum):
-                print(f"\nSkipping   {label}  (already deployed)")
-                skipped += 1
-                continue
+            if audit_config is not None:
+                checksum = checksums[sql_file]
+                if was_deployed(cursor, audit_config, label, checksum):
+                    print(f"\nSkipping   {label}  (already deployed)")
+                    skipped += 1
+                    continue
 
             statements = split_statements(sql)
             print(f"\nExecuting  {label}  ({len(statements)} statement(s))")

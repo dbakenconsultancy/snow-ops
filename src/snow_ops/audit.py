@@ -4,7 +4,7 @@ import sys
 from dataclasses import dataclass
 
 
-_IDENT_RE = re.compile(r"^[A-Za-z0-9_]+$")
+_IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 _REQUIRED_COLUMNS = {"script_name", "checksum", "executed_at"}
 
@@ -101,6 +101,10 @@ def was_deployed(cursor, config: AuditConfig, script_name: str, checksum: str) -
 
 def record_deployment(cursor, config: AuditConfig, script_name: str, checksum: str) -> None:
     cursor.execute(
-        f"INSERT INTO {config.schema}.{config.table} (script_name, checksum) VALUES (%s, %s)",
+        f"MERGE INTO {config.schema}.{config.table} AS target "
+        "USING (SELECT %s AS script_name, %s AS checksum) AS source "
+        "ON target.script_name = source.script_name AND target.checksum = source.checksum "
+        "WHEN NOT MATCHED THEN INSERT (script_name, checksum) "
+        "VALUES (source.script_name, source.checksum)",
         (script_name, checksum),
     )
