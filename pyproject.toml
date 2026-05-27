@@ -7,7 +7,7 @@ name = "snow-ops"
 version = "0.1.0"
 description = "Render Jinja-templated SQL files and execute them on Snowflake"
 readme = "README.md"
-license = { text = "MIT" }
+license = { file = "LICENSE" }
 authors = [
     { name = "Diko Baken", email = "diko@dbaken.nl" },
 ]
