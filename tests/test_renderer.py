@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from jinja2 import TemplateRuntimeError, UndefinedError
 
-from snowdump.renderer import build_env, render_file, split_statements
+from snow_ops.renderer import build_env, render_file, split_statements
 
 
 @pytest.fixture

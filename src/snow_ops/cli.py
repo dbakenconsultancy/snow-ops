@@ -6,9 +6,9 @@ from pathlib import Path
 from dotenv import load_dotenv
 from jinja2 import TemplateError, TemplateNotFound, TemplateSyntaxError, UndefinedError
 
-from snowdump import __version__
-from snowdump.executor import execute_statements, get_connection
-from snowdump.renderer import build_env, render_file, split_statements
+from snow_ops import __version__
+from snow_ops.executor import execute_statements, get_connection
+from snow_ops.renderer import build_env, render_file, split_statements
 
 
 def _print_template_error(sql_file: Path, exc: TemplateError, project_dir: Path) -> None:
@@ -55,7 +55,7 @@ def _collect_sql_files(scripts_dir: Path, names: list[str] | None) -> list[Path]
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        prog="snowdump",
+        prog="snow-ops",
         description="Render Jinja-templated SQL files and execute them on Snowflake.",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")

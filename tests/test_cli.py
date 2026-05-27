@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from jinja2 import Environment, TemplateNotFound, TemplateSyntaxError, UndefinedError, StrictUndefined
 
-from snowdump.cli import _collect_sql_files, _print_template_error
+from snow_ops.cli import _collect_sql_files, _print_template_error
 
 
 # ── _collect_sql_files ─────────────────────────────────────────────────────────
@@ -154,7 +154,7 @@ class TestGetConnectionErrors:
         for var in ("SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PASSWORD"):
             monkeypatch.delenv(var, raising=False)
 
-        from snowdump.executor import get_connection
+        from snow_ops.executor import get_connection
         with pytest.raises(EnvironmentError, match="SNOWFLAKE_ACCOUNT"):
             get_connection()
 
@@ -162,7 +162,7 @@ class TestGetConnectionErrors:
         for var in ("SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PASSWORD"):
             monkeypatch.delenv(var, raising=False)
 
-        from snowdump.executor import get_connection
+        from snow_ops.executor import get_connection
         with pytest.raises(EnvironmentError) as exc_info:
             get_connection()
         msg = str(exc_info.value)
@@ -175,6 +175,6 @@ class TestGetConnectionErrors:
         monkeypatch.setenv("SNOWFLAKE_USER", "user")
         monkeypatch.delenv("SNOWFLAKE_PASSWORD", raising=False)
 
-        from snowdump.executor import get_connection
+        from snow_ops.executor import get_connection
         with pytest.raises(EnvironmentError, match="SNOWFLAKE_PASSWORD"):
             get_connection()

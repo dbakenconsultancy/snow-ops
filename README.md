@@ -1,4 +1,4 @@
-# snowdump
+# snow-ops
 
 Render Jinja-templated SQL files and execute them against Snowflake.
 
@@ -9,8 +9,8 @@ SQL files live in `scripts/`. Reusable macros live in `modules/` (optional). Sno
 ## Installation
 
 ```bash
-git clone https://github.com/Dikootje/snowdump
-cd snowdump
+git clone https://github.com/Dikootje/snow-ops
+cd snow-ops
 pip install -e .
 ```
 
@@ -25,13 +25,13 @@ pip install -e .
 cp .env.example .env
 
 # Preview rendered SQL without connecting
-snowdump --dry-run
+snow-ops --dry-run
 
 # Run all scripts against Snowflake
-snowdump
+snow-ops
 
 # Run a specific script
-snowdump my_query.sql
+snow-ops my_query.sql
 ```
 
 ---
@@ -55,14 +55,14 @@ my_project/
 
 Files are discovered recursively across all subdirectories of `scripts/` and executed in alphabetical order of their full path. Naming subdirectories with a numeric prefix (e.g. `01_setup/`, `02_load/`) is a simple way to control execution order.
 
-Run `snowdump` from your project root, or point to it with `--project-dir`.
+Run `snow-ops` from your project root, or point to it with `--project-dir`.
 
 ---
 
 ## CLI reference
 
 ```
-snowdump [--dry-run] [--project-dir DIR] [--var KEY=VALUE ...] [SCRIPT ...]
+snow-ops [--dry-run] [--project-dir DIR] [--var KEY=VALUE ...] [SCRIPT ...]
 ```
 
 | Flag | Description |
@@ -78,16 +78,16 @@ snowdump [--dry-run] [--project-dir DIR] [--var KEY=VALUE ...] [SCRIPT ...]
 
 ```bash
 # Render all scripts and print them
-snowdump --dry-run
+snow-ops --dry-run
 
 # Run two specific scripts
-snowdump load_dim.sql load_fact.sql
+snow-ops load_dim.sql load_fact.sql
 
 # Pass template variables
-snowdump --var env=prod --var run_date=2024-06-01
+snow-ops --var env=prod --var run_date=2024-06-01
 
 # Run from a different project directory
-snowdump --project-dir /path/to/project --dry-run
+snow-ops --project-dir /path/to/project --dry-run
 ```
 
 ---
@@ -107,7 +107,7 @@ WHERE order_date >= '{{ run_date }}'
 ```
 
 ```bash
-snowdump --var target_schema=ANALYTICS --var run_date=2024-01-01
+snow-ops --var target_schema=ANALYTICS --var run_date=2024-01-01
 ```
 
 Use `| default(...)` to make a variable optional:
@@ -246,7 +246,7 @@ role = "TRANSFORMER"
 Pass the connection name at runtime:
 
 ```bash
-snowdump --connection my_connection
+snow-ops --connection my_connection
 ```
 
 Or set it once in `.env` so you never have to type it:

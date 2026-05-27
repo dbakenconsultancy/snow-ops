@@ -3,7 +3,7 @@
 import pytest
 from jinja2 import TemplateRuntimeError
 
-from snowdump.renderer import build_env
+from snow_ops.renderer import build_env
 from tests.conftest import PROJECT_DIR
 
 IMPORT = "{% from 'modules/macros.sql' import ref, surrogate_key, limit_rows, column_list, date_filter %}"
