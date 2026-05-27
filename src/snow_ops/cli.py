@@ -7,6 +7,13 @@ from dotenv import load_dotenv
 from jinja2 import TemplateError, TemplateNotFound, TemplateSyntaxError, UndefinedError
 
 from snow_ops import __version__
+from snow_ops.audit import (
+    AuditConfig,
+    compute_checksum,
+    ensure_audit_table,
+    record_deployment,
+    was_deployed,
+)
 from snow_ops.executor import execute_statements, get_connection
 from snow_ops.renderer import build_env, render_file, split_statements
 
@@ -84,6 +91,29 @@ def main() -> None:
         help="Template variable passed to every SQL file (repeatable).",
     )
     parser.add_argument(
+        "--audit",
+        action="store_true",
+        help="Enable deployment audit tracking. Scripts are skipped if their rendered "
+        "checksum was already recorded in the audit table.",
+    )
+    parser.add_argument(
+        "--audit-schema",
+        default="public",
+        metavar="SCHEMA",
+        help="Schema for the audit table (default: public). Requires --audit.",
+    )
+    parser.add_argument(
+        "--audit-table",
+        default="audit_log",
+        metavar="TABLE",
+        help="Name of the audit table (default: audit_log). Requires --audit.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Skip interactive prompts when the audit table schema needs migration. Requires --audit.",
+    )
+    parser.add_argument(
         "scripts",
         nargs="*",
         metavar="SCRIPT",
@@ -125,11 +155,17 @@ def main() -> None:
             _print_template_error(sql_file, exc, project_dir)
             sys.exit(1)
 
+    checksums: dict[Path, str] = {
+        sql_file: compute_checksum(sql) for sql_file, sql in rendered.items()
+    }
+
     if args.dry_run:
         for sql_file, sql in rendered.items():
             label = sql_file.relative_to(scripts_dir).as_posix()
             print(f"\n{'=' * 60}")
             print(f"-- {label}")
+            if args.audit:
+                print(f"-- checksum: {checksums[sql_file]}")
             print("=" * 60)
             print(sql)
         print("\nDry run complete — no statements executed.")
@@ -147,13 +183,43 @@ def main() -> None:
     cursor = None
     try:
         cursor = conn.cursor()
+
+        audit_config: AuditConfig | None = None
+        if args.audit:
+            audit_config = AuditConfig(schema=args.audit_schema, table=args.audit_table)
+            try:
+                ensure_audit_table(cursor, audit_config, force=args.force)
+            except ValueError as exc:
+                print(f"Audit configuration error: {exc}")
+                sys.exit(1)
+            except RuntimeError as exc:
+                print(str(exc))
+                sys.exit(1)
+
+        skipped = 0
+        executed = 0
         for sql_file, sql in rendered.items():
-            statements = split_statements(sql)
             label = sql_file.relative_to(scripts_dir).as_posix()
+            checksum = checksums[sql_file]
+
+            if audit_config is not None and was_deployed(cursor, audit_config, label, checksum):
+                print(f"\nSkipping   {label}  (already deployed)")
+                skipped += 1
+                continue
+
+            statements = split_statements(sql)
             print(f"\nExecuting  {label}  ({len(statements)} statement(s))")
             execute_statements(cursor, statements)
+            executed += 1
+
+            if audit_config is not None:
+                record_deployment(cursor, audit_config, label, checksum)
+
         conn.commit()
-        print("\nAll files executed successfully.")
+        parts = [f"{executed} file(s) executed"]
+        if skipped:
+            parts.append(f"{skipped} skipped (already deployed)")
+        print(f"\n{', '.join(parts)}.")
     except Exception as exc:
         conn.rollback()
         print(f"\nExecution failed: {exc}")
