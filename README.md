@@ -70,7 +70,7 @@ Run `snow-ops` from your project root, or point to it with `--project-dir`.
 ## CLI reference
 
 ```
-snow-ops [--dry-run] [--project-dir DIR] [--var KEY=VALUE ...] [SCRIPT ...]
+snow-ops [--dry-run] [--audit] [--project-dir DIR] [--var KEY=VALUE ...] [SCRIPT ...]
 ```
 
 | Flag | Description |
@@ -80,6 +80,10 @@ snow-ops [--dry-run] [--project-dir DIR] [--var KEY=VALUE ...] [SCRIPT ...]
 | `--connection NAME` | Named connection from `connections.toml`. Overrides `SNOWFLAKE_CONNECTION_NAME` and individual `SNOWFLAKE_*` variables. |
 | `--project-dir DIR` | Project root to use instead of the current directory. |
 | `--var KEY=VALUE` | Pass a template variable. Repeatable. |
+| `--audit` | Enable deployment audit tracking. See [Deployment audit](#deployment-audit). |
+| `--audit-schema SCHEMA` | Schema for the audit table (default: `public`). Requires `--audit`. |
+| `--audit-table TABLE` | Name of the audit table (default: `audit_log`). Requires `--audit`. |
+| `--force` | Skip the interactive confirmation prompt when the audit table schema needs to be updated. Requires `--audit`. |
 | `--version` | Print the installed version and exit. |
 
 ### Examples
@@ -96,6 +100,57 @@ snow-ops --var env=prod --var run_date=2024-06-01
 
 # Run from a different project directory
 snow-ops --project-dir /path/to/project --dry-run
+```
+
+---
+
+## Deployment audit
+
+Pass `--audit` to enable idempotent deployments. snow-ops computes a SHA-256 checksum of each **rendered** script and records the `(script_name, checksum)` pair in a Snowflake table after successful execution. On the next run, any script whose name and checksum are already recorded is skipped.
+
+```bash
+# First run — all scripts execute and are recorded
+snow-ops --audit
+
+# Second run — all scripts are skipped
+snow-ops --audit
+# Skipping   01_setup/create_tables.sql  (already deployed)
+# Skipping   02_load/load_events.sql     (already deployed)
+# 0 file(s) executed, 2 skipped (already deployed).
+```
+
+Changing a script's content produces a new checksum, so the updated version is executed on the next run even if the old version was already recorded.
+
+The checksum is computed on the fully-rendered SQL (after Jinja processing, before statement splitting), so different `--var` values for the same file produce different checksums and are treated as distinct deployments.
+
+### Audit table
+
+The audit table is created automatically the first time `--audit` is used. Its default location is `public.audit_log`, configurable via `--audit-schema` and `--audit-table`:
+
+```bash
+snow-ops --audit --audit-schema myschema --audit-table deploy_log
+```
+
+Schema created on first use:
+
+```sql
+CREATE TABLE public.audit_log (
+    script_name  VARCHAR NOT NULL,
+    checksum     VARCHAR NOT NULL,
+    executed_at  TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    PRIMARY KEY (script_name, checksum)
+)
+```
+
+### Schema migration
+
+If the audit table already exists but is missing required columns, snow-ops will:
+
+- **In an interactive terminal** — print the missing columns and ask for confirmation before issuing `ALTER TABLE ADD COLUMN`.
+- **In a non-interactive environment (CI/CD)** — print an error and exit with a non-zero status. Re-run with `--force` to apply the changes without a prompt.
+
+```bash
+snow-ops --audit --force
 ```
 
 ---
