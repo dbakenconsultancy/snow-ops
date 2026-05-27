@@ -1,21 +1,40 @@
-MIT License
+Snow-ops Non-Monetization License v1.0
 
-Copyright (c) 2024 Diko Baken
+Copyright (c) 2026 snow-ops contributors
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+1. Permission Grant
+   Subject to the terms of this License, any person obtaining a copy of this
+   software and associated documentation files (the "Software") is permitted to:
+   (a) use the Software for personal, research, educational, and internal
+       business purposes (including use by commercial organizations);
+   (b) copy, modify, create derivative works of, and redistribute the Software.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+2. Monetization Prohibition
+   You may not, directly or indirectly, monetize the Software or any derivative
+   work. Prohibited monetization includes, without limitation:
+   (a) selling, licensing, sublicensing, or otherwise transferring the Software
+       (or derivative works) for a fee;
+   (b) offering the Software (or derivative works) as part of a paid product,
+       subscription, SaaS, hosted service, or managed service;
+   (c) integrating the Software (or derivative works) into any product or
+       service offered for sale.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+3. Redistribution Conditions
+   Redistributions of the Software or derivative works must:
+   (a) include a copy of this License; and
+   (b) preserve all copyright and attribution notices.
+
+4. No Trademark License
+   This License does not grant any rights to use any trademarks, service marks,
+   trade names, or logos of the copyright holders.
+
+5. Disclaimer of Warranty
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+6. Limitation of Liability
+   IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+   DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR
+   OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE
+   USE OR OTHER DEALINGS IN THE SOFTWARE.
