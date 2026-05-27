@@ -1,3 +1,5 @@
+[![CI](https://github.com/dbakenconsultancy/snow-ops/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/dbakenconsultancy/snow-ops/actions/workflows/ci.yml)
+
 # snow-ops
 
 Render Jinja-templated SQL files and execute them against Snowflake.
