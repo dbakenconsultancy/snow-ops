@@ -9,12 +9,18 @@ SQL files live in `scripts/`. Reusable macros live in `modules/` (optional). Sno
 ## Installation
 
 ```bash
-git clone https://github.com/Dikootje/snow-ops
-cd snow-ops
-pip install -e .
+pip install snow-ops
 ```
 
 **Requirements:** Python 3.10+
+
+### Install from source
+
+```bash
+git clone https://github.com/dbakenconsultancy/snow-ops
+cd snow-ops
+pip install -e .
+```
 
 ---
 
@@ -310,3 +316,44 @@ WHERE {{ my_macro('status', 'shipped') }}
 ```
 
 The `modules/` folder is optional. Scripts that do not import from it work without it.
+
+---
+
+## Releasing (maintainers)
+
+Releases are published to [PyPI](https://pypi.org/project/snow-ops/) automatically via GitHub Actions when a GitHub Release is created.
+
+### One-time setup
+
+Before the first release, configure a **PyPI Trusted Publisher** so no API token needs to be stored as a secret:
+
+1. Log in to [PyPI.org](https://pypi.org/) and navigate to the `snow-ops` project (create it first with a manual upload if it does not exist yet).
+2. Go to **Manage → Publishing** and add a new trusted publisher:
+   - **Owner:** `dbakenconsultancy`
+   - **Repository:** `snow-ops`
+   - **Workflow filename:** `publish.yml`
+   - **Environment name:** `pypi`
+3. In the GitHub repository, create an environment named **`pypi`** (Settings → Environments) and optionally add required reviewers for extra protection.
+
+### Cutting a release
+
+```bash
+# 1. Bump the version in pyproject.toml
+#    e.g. version = "0.2.0"
+
+# 2. Commit and push
+git add pyproject.toml
+git commit -m "chore: bump version to 0.2.0"
+git push origin main
+
+# 3. Create and push a tag
+git tag v0.2.0
+git push origin v0.2.0
+
+# 4. On GitHub: Releases → Draft a new release
+#    - Choose the tag you just pushed
+#    - Write release notes
+#    - Click "Publish release"
+```
+
+Publishing the GitHub Release triggers the `publish.yml` workflow, which builds the wheel and sdist, then uploads them to PyPI via OIDC (no token required).
