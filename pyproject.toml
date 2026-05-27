@@ -6,6 +6,24 @@ build-backend = "setuptools.build_meta"
 name = "snow-ops"
 version = "0.1.0"
 description = "Render Jinja-templated SQL files and execute them on Snowflake"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Diko Baken", email = "diko@dbaken.nl" },
+]
+keywords = ["snowflake", "sql", "jinja", "data", "etl"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Database",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
 requires-python = ">=3.10"
 dependencies = [
     "snowflake-connector-python>=3.0.0",
@@ -14,8 +32,14 @@ dependencies = [
     "sqlparse>=0.5.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/dbakenconsultancy/snow-ops"
+Repository = "https://github.com/dbakenconsultancy/snow-ops"
+Issues = "https://github.com/dbakenconsultancy/snow-ops/issues"
+Changelog = "https://github.com/dbakenconsultancy/snow-ops/releases"
+
 [project.optional-dependencies]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "build>=1.0"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
