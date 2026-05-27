@@ -155,9 +155,11 @@ def main() -> None:
             _print_template_error(sql_file, exc, project_dir)
             sys.exit(1)
 
-    checksums: dict[Path, str] = {
-        sql_file: compute_checksum(sql) for sql_file, sql in rendered.items()
-    }
+    checksums: dict[Path, str] = (
+        {sql_file: compute_checksum(sql) for sql_file, sql in rendered.items()}
+        if args.audit
+        else {}
+    )
 
     if args.dry_run:
         for sql_file, sql in rendered.items():
@@ -186,8 +188,8 @@ def main() -> None:
 
         audit_config: AuditConfig | None = None
         if args.audit:
-            audit_config = AuditConfig(schema=args.audit_schema, table=args.audit_table)
             try:
+                audit_config = AuditConfig(schema=args.audit_schema, table=args.audit_table)
                 ensure_audit_table(cursor, audit_config, force=args.force)
             except ValueError as exc:
                 print(f"Audit configuration error: {exc}")

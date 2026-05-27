@@ -80,7 +80,7 @@ def ensure_audit_table(cursor, config: AuditConfig, force: bool = False) -> None
     if answer in ("y", "yes"):
         _alter_add_columns(cursor, config, missing)
     else:
-        sys.exit(1)
+        raise RuntimeError("Audit table migration declined. Re-run with --force to skip this prompt.")
 
 
 def _alter_add_columns(cursor, config: AuditConfig, missing: set) -> None:

@@ -136,18 +136,18 @@ class TestEnsureAuditTable:
         calls = [str(c) for c in cursor.execute.call_args_list]
         assert any("ALTER TABLE" in c for c in calls)
 
-    def test_tty_no_exits(self, cursor, config):
+    def test_tty_no_raises(self, cursor, config):
         cursor.fetchall.return_value = [("script_name",)]
         with patch("sys.stdin") as mock_stdin, patch("builtins.input", return_value="n"):
             mock_stdin.isatty.return_value = True
-            with pytest.raises(SystemExit):
+            with pytest.raises(RuntimeError, match="declined"):
                 ensure_audit_table(cursor, config, force=False)
 
-    def test_tty_empty_answer_exits(self, cursor, config):
+    def test_tty_empty_answer_raises(self, cursor, config):
         cursor.fetchall.return_value = [("script_name",)]
         with patch("sys.stdin") as mock_stdin, patch("builtins.input", return_value=""):
             mock_stdin.isatty.return_value = True
-            with pytest.raises(SystemExit):
+            with pytest.raises(RuntimeError, match="declined"):
                 ensure_audit_table(cursor, config, force=False)
 
     def test_column_names_compared_case_insensitively(self, cursor, config):
