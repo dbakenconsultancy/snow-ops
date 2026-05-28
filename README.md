@@ -70,7 +70,7 @@ Run `snow-ops` from your project root, or point to it with `--project-dir`.
 ## CLI reference
 
 ```
-snow-ops [--dry-run] [--project-dir DIR] [--var KEY=VALUE ...] [SCRIPT ...]
+snow-ops [--dry-run] [--project-dir DIR] [--connection NAME] [--connection-file-path FILE] [--var KEY=VALUE ...] [SCRIPT ...]
 ```
 
 | Flag | Description |
@@ -78,6 +78,7 @@ snow-ops [--dry-run] [--project-dir DIR] [--var KEY=VALUE ...] [SCRIPT ...]
 | `SCRIPT ...` | One or more filenames to run (relative to `scripts/`, `.sql` extension optional). Default: all `*.sql` files in `scripts/` and its subdirectories, sorted alphabetically by full path. |
 | `--dry-run` | Render templates and print the resulting SQL. No Snowflake connection is made. |
 | `--connection NAME` | Named connection from `connections.toml`. Overrides `SNOWFLAKE_CONNECTION_NAME` and individual `SNOWFLAKE_*` variables. |
+| `--connection-file-path FILE` | Explicit path to `connections.toml`. Overrides the default lookup order (current directory, then `~/.snowflake/`). |
 | `--project-dir DIR` | Project root to use instead of the current directory. |
 | `--var KEY=VALUE` | Pass a template variable. Repeatable. |
 | `--version` | Print the installed version and exit. |
@@ -238,7 +239,7 @@ Two ways to authenticate — pick one.
 
 ### Option A — connections.toml (recommended)
 
-The Snowflake connector reads named connections from `~/.snowflake/connections.toml`:
+Create a `connections.toml` file with one section per named connection:
 
 ```toml
 [my_connection]
@@ -264,6 +265,24 @@ SNOWFLAKE_CONNECTION_NAME=my_connection
 ```
 
 `--connection` takes priority over `SNOWFLAKE_CONNECTION_NAME`, which takes priority over individual variables.
+
+#### connections.toml lookup order
+
+When `--connection` (or `SNOWFLAKE_CONNECTION_NAME`) is used, snow-ops looks for `connections.toml` in this order:
+
+1. The path given by `--connection-file-path` (if provided)
+2. `connections.toml` in the **current working directory**
+3. `~/.snowflake/connections.toml`
+
+To use a project-local file, place `connections.toml` alongside your scripts and run snow-ops from that directory. To share a single file across projects, put it in `~/.snowflake/`.
+
+```bash
+# Use a specific file
+snow-ops --connection my_connection --connection-file-path /etc/snowflake/connections.toml
+
+# Pick up connections.toml from the current directory automatically
+snow-ops --connection my_connection
+```
 
 ### Option B — environment variables
 
