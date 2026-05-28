@@ -386,18 +386,6 @@ The `modules/` folder is optional. Scripts that do not import from it work witho
 
 Releases are published to [PyPI](https://pypi.org/project/snow-ops/) automatically via GitHub Actions when a GitHub Release is created.
 
-### One-time setup
-
-Before the first release, configure a **PyPI Trusted Publisher** so no API token needs to be stored as a secret:
-
-1. Log in to [PyPI.org](https://pypi.org/) and navigate to the `snow-ops` project (create it first with a manual upload if it does not exist yet).
-2. Go to **Manage → Publishing** and add a new trusted publisher:
-   - **Owner:** `dbakenconsultancy`
-   - **Repository:** `snow-ops`
-   - **Workflow filename:** `publish.yml`
-   - **Environment name:** `pypi`
-3. In the GitHub repository, create an environment named **`pypi`** (Settings → Environments) and optionally add required reviewers for extra protection.
-
 ### Cutting a release
 
 ```bash
