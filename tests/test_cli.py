@@ -4,7 +4,7 @@ import pytest
 from pathlib import Path
 from jinja2 import Environment, TemplateNotFound, TemplateSyntaxError, UndefinedError, StrictUndefined
 
-from snow_ops.cli import _collect_sql_files, _print_template_error
+from snow_ops.cli import _collect_sql_files, _print_template_error, _resolve_connections_toml
 
 
 # ── _collect_sql_files ─────────────────────────────────────────────────────────
@@ -145,6 +145,38 @@ class TestPrintTemplateError:
             _print_template_error(sql_file, exc, tmp_path)
         out = capsys.readouterr().out
         assert "--var" in out
+
+
+# ── _resolve_connections_toml ──────────────────────────────────────────────────
+
+class TestResolveConnectionsToml:
+    def test_explicit_path_returned_as_is(self, tmp_path):
+        f = tmp_path / "my_connections.toml"
+        f.write_text("")
+        result = _resolve_connections_toml(f)
+        assert result == f.resolve()
+
+    def test_cwd_connections_toml_preferred_over_home(self, tmp_path, monkeypatch):
+        cwd_file = tmp_path / "connections.toml"
+        cwd_file.write_text("")
+        monkeypatch.chdir(tmp_path)
+        result = _resolve_connections_toml(None)
+        assert result == cwd_file
+
+    def test_falls_back_to_home_when_no_cwd_file(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)  # tmp_path has no connections.toml
+        result = _resolve_connections_toml(None)
+        from pathlib import Path
+        assert result == Path.home() / ".snowflake" / "connections.toml"
+
+    def test_explicit_path_takes_priority_over_cwd(self, tmp_path, monkeypatch):
+        cwd_file = tmp_path / "connections.toml"
+        cwd_file.write_text("")
+        explicit = tmp_path / "other.toml"
+        explicit.write_text("")
+        monkeypatch.chdir(tmp_path)
+        result = _resolve_connections_toml(explicit)
+        assert result == explicit.resolve()
 
 
 # ── executor error paths (no Snowflake required) ───────────────────────────────
