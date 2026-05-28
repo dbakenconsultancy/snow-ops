@@ -1,12 +1,13 @@
 import os
+from pathlib import Path
 
 
-def get_connection(connection_name: str | None = None):
+def get_connection(connection_name: str | None = None, connections_file: Path | None = None):
     """Return a Snowflake connection.
 
     If connection_name is given, the named connection is loaded from
-    connections.toml (~/.snowflake/connections.toml or the path in
-    SNOWFLAKE_CONNECTIONS_FILE). All parameters come from that file.
+    connections.toml. Resolution order: connections_file argument, then
+    connections.toml in the current directory, then ~/.snowflake/connections.toml.
 
     Otherwise, credentials are read from environment variables:
       Required: SNOWFLAKE_ACCOUNT, SNOWFLAKE_USER, SNOWFLAKE_PASSWORD
@@ -24,7 +25,18 @@ def get_connection(connection_name: str | None = None):
         ) from exc
 
     if connection_name:
-        return snowflake.connector.connect(connection_name=connection_name)
+        if connections_file is None:
+            return snowflake.connector.connect(connection_name=connection_name)
+
+        prev = os.environ.get("SNOWFLAKE_CONNECTIONS_FILE")
+        os.environ["SNOWFLAKE_CONNECTIONS_FILE"] = str(connections_file)
+        try:
+            return snowflake.connector.connect(connection_name=connection_name)
+        finally:
+            if prev is None:
+                os.environ.pop("SNOWFLAKE_CONNECTIONS_FILE", None)
+            else:
+                os.environ["SNOWFLAKE_CONNECTIONS_FILE"] = prev
 
     required = ("SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PASSWORD")
     missing = [k for k in required if not os.getenv(k)]
