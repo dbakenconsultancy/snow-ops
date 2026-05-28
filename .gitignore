@@ -1,3 +1,4 @@
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -5,6 +6,18 @@ __pycache__/
 dist/
 build/
 .eggs/
+
+# Environments
 .env
 .venv/
 venv/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editors
+.idea/
+.vscode/
+*.swp
