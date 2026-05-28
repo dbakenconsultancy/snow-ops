@@ -93,7 +93,8 @@ class TestEnsureAuditTable:
 
     def test_no_action_when_all_columns_present(self, cursor, config):
         cursor.fetchall.return_value = [
-            ("script_name",), ("checksum",), ("executed_at",)
+            ("script_name",), ("checksum",), ("executed_at",),
+            ("executed_by_user",), ("executed_by_role",),
         ]
         ensure_audit_table(cursor, config, force=False)
         calls = [str(c) for c in cursor.execute.call_args_list]
@@ -101,7 +102,8 @@ class TestEnsureAuditTable:
 
     def test_compatible_with_extra_columns(self, cursor, config):
         cursor.fetchall.return_value = [
-            ("script_name",), ("checksum",), ("executed_at",), ("extra_col",)
+            ("script_name",), ("checksum",), ("executed_at",),
+            ("executed_by_user",), ("executed_by_role",), ("extra_col",),
         ]
         ensure_audit_table(cursor, config, force=False)
         calls = [str(c) for c in cursor.execute.call_args_list]
@@ -160,7 +162,8 @@ class TestEnsureAuditTable:
 
     def test_column_names_compared_case_insensitively(self, cursor, config):
         cursor.fetchall.return_value = [
-            ("SCRIPT_NAME",), ("CHECKSUM",), ("EXECUTED_AT",)
+            ("SCRIPT_NAME",), ("CHECKSUM",), ("EXECUTED_AT",),
+            ("EXECUTED_BY_USER",), ("EXECUTED_BY_ROLE",),
         ]
         ensure_audit_table(cursor, config, force=False)
         calls = [str(c) for c in cursor.execute.call_args_list]

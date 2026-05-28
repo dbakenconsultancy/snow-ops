@@ -6,12 +6,14 @@ from dataclasses import dataclass
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-_REQUIRED_COLUMNS = {"script_name", "checksum", "executed_at"}
+_REQUIRED_COLUMNS = {"script_name", "checksum", "executed_at", "executed_by_user", "executed_by_role"}
 
 _COLUMN_TYPES = {
     "script_name": "VARCHAR",
     "checksum": "VARCHAR",
     "executed_at": "TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()",
+    "executed_by_user": "VARCHAR DEFAULT CURRENT_USER()",
+    "executed_by_role": "VARCHAR DEFAULT CURRENT_ROLE()",
 }
 
 
@@ -47,9 +49,11 @@ def ensure_audit_table(cursor, config: AuditConfig, force: bool = False) -> None
     if not rows:
         cursor.execute(
             f"CREATE TABLE {config.schema}.{config.table} ("
-            "script_name  VARCHAR NOT NULL, "
-            "checksum     VARCHAR NOT NULL, "
-            "executed_at  TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(), "
+            "script_name      VARCHAR NOT NULL, "
+            "checksum         VARCHAR NOT NULL, "
+            "executed_at      TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(), "
+            "executed_by_user VARCHAR DEFAULT CURRENT_USER(), "
+            "executed_by_role VARCHAR DEFAULT CURRENT_ROLE(), "
             "PRIMARY KEY (script_name, checksum)"
             ")"
         )
