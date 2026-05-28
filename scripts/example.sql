@@ -3,8 +3,8 @@
 -- example.sql
 -- Demonstrates Jinja macros and template variables.
 -- Run with:
---   snowdump --dry-run
---   snowdump --dry-run --var start_date=2024-06-01 --var target_schema=ANALYTICS
+--   snow-ops --dry-run
+--   snow-ops --dry-run --var start_date=2024-06-01 --var target_schema=ANALYTICS
 -- ============================================================
 
 CREATE OR REPLACE TABLE {{ target_schema | default('PUBLIC') }}.stg_events AS

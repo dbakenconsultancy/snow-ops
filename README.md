@@ -6,9 +6,9 @@ Render Jinja-templated SQL files and execute them against Snowflake.
 
 SQL files live in `scripts/`. Reusable macros live in `modules/` (optional). Snowflake credentials come from environment variables or a `.env` file.
 
-This project is inspired by the work done by Snowflake-labs: [schemachange](https://github.com/snowflake-labs/schemachange) and [dlsync](https://github.com/snowflake-labs/dlsync). However what we really were looking for was a tool that combines the power of both. Working with very extensive macros the granular level of dlsync didn't fit out use-case. schemachange gave us the power for heavy templating, but now we're strugling with the migration based nature. 
+This project is inspired by Snowflake Labs tools such as [schemachange](https://github.com/snowflake-labs/schemachange) and [dlsync](https://github.com/snowflake-labs/dlsync). We wanted a tool that combines the strengths of both. For projects that rely heavily on macros, dlsync can feel too granular, while schemachange provides powerful templating but is tightly coupled to migration-style workflows.
 
-That is where snow-ops comes in, the jinja template power of schemachange but without the constraint of the forced migrations.  
+That is where snow-ops comes in: the Jinja templating power of schemachange without the constraint of forced migrations.
 
 ---
 
