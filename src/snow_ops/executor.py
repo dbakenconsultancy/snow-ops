@@ -25,9 +25,18 @@ def get_connection(connection_name: str | None = None, connections_file: Path | 
         ) from exc
 
     if connection_name:
-        if connections_file is not None:
-            os.environ["SNOWFLAKE_CONNECTIONS_FILE"] = str(connections_file)
-        return snowflake.connector.connect(connection_name=connection_name)
+        if connections_file is None:
+            return snowflake.connector.connect(connection_name=connection_name)
+
+        prev = os.environ.get("SNOWFLAKE_CONNECTIONS_FILE")
+        os.environ["SNOWFLAKE_CONNECTIONS_FILE"] = str(connections_file)
+        try:
+            return snowflake.connector.connect(connection_name=connection_name)
+        finally:
+            if prev is None:
+                os.environ.pop("SNOWFLAKE_CONNECTIONS_FILE", None)
+            else:
+                os.environ["SNOWFLAKE_CONNECTIONS_FILE"] = prev
 
     required = ("SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PASSWORD")
     missing = [k for k in required if not os.getenv(k)]

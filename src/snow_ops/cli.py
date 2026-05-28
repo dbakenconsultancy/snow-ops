@@ -185,7 +185,13 @@ def main() -> None:
 
     connection_name = args.connection or os.getenv("SNOWFLAKE_CONNECTION_NAME")
     connection_source = "--connection flag" if args.connection else "SNOWFLAKE_CONNECTION_NAME"
-    toml_path = _resolve_connections_toml(args.connection_file_path) if connection_name else None
+    if connection_name:
+        toml_path = _resolve_connections_toml(args.connection_file_path)
+        if not toml_path.is_file():
+            print(f"connections.toml not found: {toml_path}")
+            sys.exit(1)
+    else:
+        toml_path = None
 
     print("\nConnecting to Snowflake ...")
     _print_connection_info(connection_name, connection_source, project_dir / ".env", pre_dotenv_keys, toml_path)
