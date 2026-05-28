@@ -53,6 +53,38 @@ def _collect_sql_files(scripts_dir: Path, names: list[str] | None) -> list[Path]
     return sorted(scripts_dir.rglob("*.sql"))
 
 
+def _print_connection_info(
+    connection_name: str | None,
+    connection_source: str,
+    dotenv_file: Path,
+    pre_dotenv_keys: set[str],
+) -> None:
+    if connection_name:
+        toml_path = os.getenv("SNOWFLAKE_CONNECTIONS_FILE") or str(
+            Path.home() / ".snowflake" / "connections.toml"
+        )
+        print(f"  Source:      connections.toml")
+        print(f"  Config file: {toml_path}")
+        print(f"  Connection:  {connection_name}  (from {connection_source})")
+    else:
+        print("  Source:      environment variables")
+        if dotenv_file.is_file():
+            print(f"  .env file:   {dotenv_file}")
+        else:
+            print(f"  .env file:   {dotenv_file}  (not found)")
+
+        for suffix in ("ACCOUNT", "USER", "PASSWORD", "DATABASE", "SCHEMA", "WAREHOUSE", "ROLE"):
+            key = f"SNOWFLAKE_{suffix}"
+            val = os.getenv(key)
+            label = suffix.capitalize()
+            if val:
+                src = "OS environment" if key in pre_dotenv_keys else ".env"
+                display = "***" if suffix == "PASSWORD" else val
+                print(f"  {label:<10} {display}  (from {src})")
+            else:
+                print(f"  {label:<10} (not set)")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="snow-ops",
@@ -93,6 +125,7 @@ def main() -> None:
     args = parser.parse_args()
 
     project_dir: Path = args.project_dir.resolve()
+    pre_dotenv_keys: set[str] = set(os.environ.keys())
     load_dotenv(project_dir / ".env")
     scripts_dir = project_dir / "scripts"
 
@@ -136,8 +169,10 @@ def main() -> None:
         return
 
     connection_name = args.connection or os.getenv("SNOWFLAKE_CONNECTION_NAME")
+    connection_source = "--connection flag" if args.connection else "SNOWFLAKE_CONNECTION_NAME"
 
     print("\nConnecting to Snowflake ...")
+    _print_connection_info(connection_name, connection_source, project_dir / ".env", pre_dotenv_keys)
     try:
         conn = get_connection(connection_name)
     except (EnvironmentError, RuntimeError) as exc:
