@@ -214,6 +214,8 @@ class TestRecordDeployment:
         record_deployment(cursor, config, "s.sql", "x")
         sql = cursor.execute.call_args[0][0]
         assert "MERGE INTO public.audit_log" in sql
+        assert "CURRENT_USER()" in sql
+        assert "CURRENT_ROLE()" in sql
 
     def test_executed_at_not_in_params(self, cursor, config):
         record_deployment(cursor, config, "s.sql", "x")

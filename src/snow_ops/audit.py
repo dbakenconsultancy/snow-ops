@@ -12,8 +12,8 @@ _COLUMN_TYPES = {
     "script_name": "VARCHAR",
     "checksum": "VARCHAR",
     "executed_at": "TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()",
-    "executed_by_user": "VARCHAR DEFAULT CURRENT_USER()",
-    "executed_by_role": "VARCHAR DEFAULT CURRENT_ROLE()",
+    "executed_by_user": "VARCHAR",
+    "executed_by_role": "VARCHAR",
 }
 
 
@@ -52,8 +52,8 @@ def ensure_audit_table(cursor, config: AuditConfig, force: bool = False) -> None
             "script_name      VARCHAR NOT NULL, "
             "checksum         VARCHAR NOT NULL, "
             "executed_at      TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(), "
-            "executed_by_user VARCHAR DEFAULT CURRENT_USER(), "
-            "executed_by_role VARCHAR DEFAULT CURRENT_ROLE(), "
+            "executed_by_user VARCHAR, "
+            "executed_by_role VARCHAR, "
             "PRIMARY KEY (script_name, checksum)"
             ")"
         )
@@ -106,9 +106,10 @@ def was_deployed(cursor, config: AuditConfig, script_name: str, checksum: str) -
 def record_deployment(cursor, config: AuditConfig, script_name: str, checksum: str) -> None:
     cursor.execute(
         f"MERGE INTO {config.schema}.{config.table} AS target "
-        "USING (SELECT %s AS script_name, %s AS checksum) AS source "
+        "USING (SELECT %s AS script_name, %s AS checksum, "
+        "CURRENT_USER() AS executed_by_user, CURRENT_ROLE() AS executed_by_role) AS source "
         "ON target.script_name = source.script_name AND target.checksum = source.checksum "
-        "WHEN NOT MATCHED THEN INSERT (script_name, checksum) "
-        "VALUES (source.script_name, source.checksum)",
+        "WHEN NOT MATCHED THEN INSERT (script_name, checksum, executed_by_user, executed_by_role) "
+        "VALUES (source.script_name, source.checksum, source.executed_by_user, source.executed_by_role)",
         (script_name, checksum),
     )

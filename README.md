@@ -142,8 +142,8 @@ CREATE TABLE public.audit_log (
     script_name      VARCHAR NOT NULL,
     checksum         VARCHAR NOT NULL,
     executed_at      TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
-    executed_by_user VARCHAR DEFAULT CURRENT_USER(),
-    executed_by_role VARCHAR DEFAULT CURRENT_ROLE(),
+    executed_by_user VARCHAR,
+    executed_by_role VARCHAR,
     PRIMARY KEY (script_name, checksum)
 )
 ```
