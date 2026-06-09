@@ -6,6 +6,10 @@ Render Jinja-templated SQL files and execute them against Snowflake.
 
 SQL files live in `scripts/`. Reusable macros live in `modules/` (optional). Snowflake credentials come from environment variables or a `.env` file.
 
+This project is inspired by Snowflake Labs tools such as [schemachange](https://github.com/snowflake-labs/schemachange) and [dlsync](https://github.com/snowflake-labs/dlsync). We wanted a tool that combines the strengths of both. For projects that rely heavily on macros, dlsync can feel too granular, while schemachange provides powerful templating but is tightly coupled to migration-style workflows.
+
+That is where snow-ops comes in: the Jinja templating power of schemachange without the constraint of forced migrations.
+
 ---
 
 ## Installation
@@ -81,6 +85,10 @@ snow-ops [--dry-run] [--project-dir DIR] [--connection NAME] [--connection-file-
 | `--connection-file-path FILE` | Explicit path to `connections.toml`. Overrides the default lookup order (current directory, then `~/.snowflake/`). |
 | `--project-dir DIR` | Project root to use instead of the current directory. |
 | `--var KEY=VALUE` | Pass a template variable. Repeatable. |
+| `--audit` | Enable deployment audit tracking. See [Deployment audit](#deployment-audit). |
+| `--audit-schema SCHEMA` | Schema for the audit table (default: `public`). Requires `--audit`. |
+| `--audit-table TABLE` | Name of the audit table (default: `audit_log`). Requires `--audit`. |
+| `--force` | Skip the interactive confirmation prompt when the audit table schema needs to be updated. Requires `--audit`. |
 | `--version` | Print the installed version and exit. |
 
 ### Examples
@@ -97,6 +105,59 @@ snow-ops --var env=prod --var run_date=2024-06-01
 
 # Run from a different project directory
 snow-ops --project-dir /path/to/project --dry-run
+```
+
+---
+
+## Deployment audit
+
+Pass `--audit` to enable idempotent deployments. snow-ops computes a SHA-256 checksum of each **rendered** script and records the `(script_name, checksum)` pair in a Snowflake table after successful execution. On the next run, any script whose name and checksum are already recorded is skipped.
+
+```bash
+# First run — all scripts execute and are recorded
+snow-ops --audit
+
+# Second run — all scripts are skipped
+snow-ops --audit
+# Skipping   01_setup/create_tables.sql  (already deployed)
+# Skipping   02_load/load_events.sql     (already deployed)
+# 0 file(s) executed, 2 skipped (already deployed).
+```
+
+Changing a script's content produces a new checksum, so the updated version is executed on the next run even if the old version was already recorded.
+
+The checksum is computed on the fully-rendered SQL (after Jinja processing, before statement splitting), so different `--var` values for the same file produce different checksums and are treated as distinct deployments.
+
+### Audit table
+
+The audit table is created automatically the first time `--audit` is used. Its default location is `public.audit_log`, configurable via `--audit-schema` and `--audit-table`:
+
+```bash
+snow-ops --audit --audit-schema myschema --audit-table deploy_log
+```
+
+Schema created on first use:
+
+```sql
+CREATE TABLE public.audit_log (
+    script_name      VARCHAR NOT NULL,
+    checksum         VARCHAR NOT NULL,
+    executed_at      TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
+    executed_by_user VARCHAR,
+    executed_by_role VARCHAR,
+    PRIMARY KEY (script_name, checksum)
+)
+```
+
+### Schema migration
+
+If the audit table already exists but is missing required columns, snow-ops will:
+
+- **In an interactive terminal** — print the missing columns and ask for confirmation before issuing `ALTER TABLE ADD COLUMN`.
+- **In a non-interactive environment (CI/CD)** — print an error and exit with a non-zero status. Re-run with `--force` to apply the changes without a prompt.
+
+```bash
+snow-ops --audit --force
 ```
 
 ---
@@ -343,18 +404,6 @@ The `modules/` folder is optional. Scripts that do not import from it work witho
 ## Releasing (maintainers)
 
 Releases are published to [PyPI](https://pypi.org/project/snow-ops/) automatically via GitHub Actions when a GitHub Release is created.
-
-### One-time setup
-
-Before the first release, configure a **PyPI Trusted Publisher** so no API token needs to be stored as a secret:
-
-1. Log in to [PyPI.org](https://pypi.org/) and navigate to the `snow-ops` project (create it first with a manual upload if it does not exist yet).
-2. Go to **Manage → Publishing** and add a new trusted publisher:
-   - **Owner:** `dbakenconsultancy`
-   - **Repository:** `snow-ops`
-   - **Workflow filename:** `publish.yml`
-   - **Environment name:** `pypi`
-3. In the GitHub repository, create an environment named **`pypi`** (Settings → Environments) and optionally add required reviewers for extra protection.
 
 ### Cutting a release
 
