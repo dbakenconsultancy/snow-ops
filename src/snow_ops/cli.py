@@ -60,16 +60,23 @@ def _collect_sql_files(scripts_dir: Path, names: list[str] | None) -> list[Path]
     return sorted(scripts_dir.rglob("*.sql"))
 
 
+def _resolve_connections_toml(connection_file_path: Path | None) -> Path:
+    if connection_file_path is not None:
+        return connection_file_path.resolve()
+    cwd_candidate = Path.cwd() / "connections.toml"
+    if cwd_candidate.is_file():
+        return cwd_candidate
+    return Path.home() / ".snowflake" / "connections.toml"
+
+
 def _print_connection_info(
     connection_name: str | None,
     connection_source: str,
     dotenv_file: Path,
     pre_dotenv_keys: set[str],
+    toml_path: Path | None = None,
 ) -> None:
     if connection_name:
-        toml_path = os.getenv("SNOWFLAKE_CONNECTIONS_FILE") or str(
-            Path.home() / ".snowflake" / "connections.toml"
-        )
         print(f"  Source:      connections.toml")
         print(f"  Config file: {toml_path}")
         print(f"  Connection:  {connection_name}  (from {connection_source})")
@@ -115,6 +122,14 @@ def main() -> None:
         metavar="NAME",
         help="Named connection from connections.toml. "
         "Overrides SNOWFLAKE_CONNECTION_NAME and individual SNOWFLAKE_* variables.",
+    )
+    parser.add_argument(
+        "--connection-file-path",
+        type=Path,
+        metavar="FILE",
+        help="Path to connections.toml. "
+        "Defaults to connections.toml in the current directory, "
+        "then ~/.snowflake/connections.toml.",
     )
     parser.add_argument(
         "--var",
@@ -208,11 +223,18 @@ def main() -> None:
 
     connection_name = args.connection or os.getenv("SNOWFLAKE_CONNECTION_NAME")
     connection_source = "--connection flag" if args.connection else "SNOWFLAKE_CONNECTION_NAME"
+    if connection_name:
+        toml_path = _resolve_connections_toml(args.connection_file_path)
+        if not toml_path.is_file():
+            print(f"connections.toml not found: {toml_path}")
+            sys.exit(1)
+    else:
+        toml_path = None
 
     print("\nConnecting to Snowflake ...")
-    _print_connection_info(connection_name, connection_source, project_dir / ".env", pre_dotenv_keys)
+    _print_connection_info(connection_name, connection_source, project_dir / ".env", pre_dotenv_keys, toml_path)
     try:
-        conn = get_connection(connection_name)
+        conn = get_connection(connection_name, toml_path)
     except (EnvironmentError, RuntimeError) as exc:
         print(exc)
         sys.exit(1)
