@@ -119,6 +119,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--connection",
+        "--connection-name",
         metavar="NAME",
         help="Named connection from connections.toml. "
         "Overrides SNOWFLAKE_CONNECTION_NAME and individual SNOWFLAKE_* variables.",
