@@ -6,8 +6,9 @@ from dataclasses import dataclass
 
 _IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
-_REQUIRED_COLUMNS = {"script_name", "checksum", "executed_at", "executed_by_user", "executed_by_role"}
-
+# Single source of truth for the audit table layout. NOT NULL applies only at
+# CREATE time — ALTER TABLE ADD COLUMN cannot add NOT NULL columns to a table
+# that already holds rows.
 _COLUMN_TYPES = {
     "script_name": "VARCHAR",
     "checksum": "VARCHAR",
@@ -15,6 +16,10 @@ _COLUMN_TYPES = {
     "executed_by_user": "VARCHAR",
     "executed_by_role": "VARCHAR",
 }
+
+_NOT_NULL_COLUMNS = frozenset({"script_name", "checksum"})
+
+_REQUIRED_COLUMNS = frozenset(_COLUMN_TYPES)
 
 
 def _validate_identifier(name: str, label: str) -> None:
@@ -47,15 +52,13 @@ def ensure_audit_table(cursor, config: AuditConfig, force: bool = False) -> None
     rows = cursor.fetchall()
 
     if not rows:
+        columns = ", ".join(
+            f"{name} {col_type}" + (" NOT NULL" if name in _NOT_NULL_COLUMNS else "")
+            for name, col_type in _COLUMN_TYPES.items()
+        )
         cursor.execute(
-            f"CREATE TABLE {config.schema}.{config.table} ("
-            "script_name      VARCHAR NOT NULL, "
-            "checksum         VARCHAR NOT NULL, "
-            "executed_at      TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(), "
-            "executed_by_user VARCHAR, "
-            "executed_by_role VARCHAR, "
-            "PRIMARY KEY (script_name, checksum)"
-            ")"
+            f"CREATE TABLE {config.schema}.{config.table} "
+            f"({columns}, PRIMARY KEY (script_name, checksum))"
         )
         return
 
@@ -72,7 +75,7 @@ def ensure_audit_table(cursor, config: AuditConfig, force: bool = False) -> None
         _alter_add_columns(cursor, config, missing)
         return
 
-    if not (sys.stdin is not None and sys.stdin.isatty()):
+    if sys.stdin is None or not sys.stdin.isatty():
         raise RuntimeError(
             f"Audit table {full_name} is missing required columns: {missing_list}. "
             "Re-run with --force to add them automatically."
@@ -80,14 +83,17 @@ def ensure_audit_table(cursor, config: AuditConfig, force: bool = False) -> None
 
     print(f"Audit table {full_name} is missing required columns: {missing_list}")
     print("Proceeding will ALTER the table to add missing columns, which may affect existing data.")
-    answer = input("Proceed? [y/N]: ").strip().lower()
+    try:
+        answer = input("Proceed? [y/N]: ").strip().lower()
+    except EOFError:
+        answer = ""
     if answer in ("y", "yes"):
         _alter_add_columns(cursor, config, missing)
     else:
         raise RuntimeError("Audit table migration declined. Re-run with --force to skip this prompt.")
 
 
-def _alter_add_columns(cursor, config: AuditConfig, missing: set) -> None:
+def _alter_add_columns(cursor, config: AuditConfig, missing: set[str]) -> None:
     for col in sorted(missing):
         cursor.execute(
             f"ALTER TABLE {config.schema}.{config.table} ADD COLUMN {col} {_COLUMN_TYPES[col]}"

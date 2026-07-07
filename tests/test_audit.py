@@ -160,6 +160,15 @@ class TestEnsureAuditTable:
             with pytest.raises(RuntimeError, match="declined"):
                 ensure_audit_table(cursor, config, force=False)
 
+    def test_tty_eof_treated_as_decline(self, cursor, config):
+        cursor.fetchall.return_value = [("script_name",)]
+        with patch("sys.stdin") as mock_stdin, patch("builtins.input", side_effect=EOFError):
+            mock_stdin.isatty.return_value = True
+            with pytest.raises(RuntimeError, match="declined"):
+                ensure_audit_table(cursor, config, force=False)
+        calls = [str(c) for c in cursor.execute.call_args_list]
+        assert not any("ALTER TABLE" in c for c in calls)
+
     def test_column_names_compared_case_insensitively(self, cursor, config):
         cursor.fetchall.return_value = [
             ("SCRIPT_NAME",), ("CHECKSUM",), ("EXECUTED_AT",),
