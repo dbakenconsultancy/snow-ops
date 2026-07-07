@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+from contextlib import suppress
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -42,22 +43,37 @@ def _print_template_error(sql_file: Path, exc: TemplateError, project_dir: Path)
 
 
 def _collect_sql_files(scripts_dir: Path, names: list[str] | None) -> list[Path]:
-    if names:
-        files = []
-        for name in names:
-            p = scripts_dir / name
-            if not p.suffix:
-                p = p.with_suffix(".sql")
-            p = p.resolve()
-            if not p.is_relative_to(scripts_dir.resolve()):
-                print(f"Path escapes scripts directory: {name!r}")
-                sys.exit(1)
-            if not p.is_file():
-                print(f"File not found: {p}")
-                sys.exit(1)
-            files.append(p)
-        return files
-    return sorted(scripts_dir.rglob("*.sql"))
+    if not names:
+        return sorted(scripts_dir.rglob("*.sql"))
+    base = scripts_dir.resolve()
+    files = []
+    for name in names:
+        p = scripts_dir / name
+        if not p.suffix:
+            p = p.with_suffix(".sql")
+        # Normalize ".." lexically but keep the path under scripts_dir: labels and
+        # Jinja template names are computed relative to the project tree, which a
+        # fully resolved path would break when scripts/ is a symlink.
+        p = Path(os.path.normpath(p))
+        if not p.resolve().is_relative_to(base):
+            print(f"Path escapes scripts directory: {name!r}")
+            sys.exit(1)
+        if not p.is_file():
+            print(f"File not found: {p}")
+            sys.exit(1)
+        files.append(p)
+    return files
+
+
+def _parse_vars(entries: list[str] | None) -> dict[str, str]:
+    context: dict[str, str] = {}
+    for entry in entries or []:
+        key, sep, value = entry.partition("=")
+        if not sep or not key:
+            print(f"Invalid --var entry: {entry!r} (expected KEY=VALUE)")
+            sys.exit(1)
+        context[key] = value
+    return context
 
 
 def _resolve_connections_toml(connection_file_path: Path | None) -> Path:
@@ -77,7 +93,7 @@ def _print_connection_info(
     toml_path: Path | None = None,
 ) -> None:
     if connection_name:
-        print(f"  Source:      connections.toml")
+        print("  Source:      connections.toml")
         print(f"  Config file: {toml_path}")
         print(f"  Connection:  {connection_name}  (from {connection_source})")
     else:
@@ -179,13 +195,7 @@ def main() -> None:
         print(f"scripts/ directory not found under {project_dir}")
         sys.exit(1)
 
-    context: dict[str, str] = {}
-    for entry in args.var or []:
-        key, sep, value = entry.partition("=")
-        if not sep or not key:
-            print(f"Invalid --var entry: {entry!r} (expected KEY=VALUE)")
-            sys.exit(1)
-        context[key] = value
+    context = _parse_vars(args.var)
 
     sql_files = _collect_sql_files(scripts_dir, args.scripts or None)
     if not sql_files:
@@ -260,13 +270,12 @@ def main() -> None:
         executed = 0
         for sql_file, sql in rendered.items():
             label = sql_file.relative_to(scripts_dir).as_posix()
+            checksum = checksums.get(sql_file)
 
-            if audit_config is not None:
-                checksum = checksums[sql_file]
-                if was_deployed(cursor, audit_config, label, checksum):
-                    print(f"\nSkipping   {label}  (already deployed)")
-                    skipped += 1
-                    continue
+            if audit_config is not None and was_deployed(cursor, audit_config, label, checksum):
+                print(f"\nSkipping   {label}  (already deployed)")
+                skipped += 1
+                continue
 
             statements = split_statements(sql)
             print(f"\nExecuting  {label}  ({len(statements)} statement(s))")
@@ -281,11 +290,21 @@ def main() -> None:
         if skipped:
             parts.append(f"{skipped} skipped (already deployed)")
         print(f"\n{', '.join(parts)}.")
+    except KeyboardInterrupt:
+        with suppress(Exception):
+            conn.rollback()
+        print("\nInterrupted.")
+        sys.exit(130)
     except Exception as exc:
-        conn.rollback()
+        # rollback/close can themselves fail on a dead connection — never let
+        # that mask the original execution error
+        with suppress(Exception):
+            conn.rollback()
         print(f"\nExecution failed: {exc}")
         sys.exit(1)
     finally:
         if cursor is not None:
-            cursor.close()
-        conn.close()
+            with suppress(Exception):
+                cursor.close()
+        with suppress(Exception):
+            conn.close()

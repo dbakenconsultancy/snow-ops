@@ -74,7 +74,9 @@ Run `snow-ops` from your project root, or point to it with `--project-dir`.
 ## CLI reference
 
 ```
-snow-ops [--dry-run] [--project-dir DIR] [--connection NAME] [--connection-file-path FILE] [--var KEY=VALUE ...] [SCRIPT ...]
+snow-ops [--dry-run] [--project-dir DIR] [--connection NAME] [--connection-file-path FILE]
+         [--var KEY=VALUE ...] [--audit] [--audit-schema SCHEMA] [--audit-table TABLE] [--force]
+         [SCRIPT ...]
 ```
 
 | Flag | Description |

@@ -52,9 +52,11 @@ def get_connection(connection_name: str | None = None, connections_file: Path | 
 
 
 def execute_statements(cursor, statements: list[str]) -> None:
+    total = len(statements)
     for i, stmt in enumerate(statements, 1):
         preview = stmt[:80].replace("\n", " ")
-        print(f"    [{i}/{len(statements)}] {preview}...")
+        ellipsis = "..." if len(stmt) > 80 else ""
+        print(f"    [{i}/{total}] {preview}{ellipsis}")
         cursor.execute(stmt)
         if cursor.rowcount is not None and cursor.rowcount >= 0:
             print(f"           rows affected: {cursor.rowcount}")

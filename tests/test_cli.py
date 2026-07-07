@@ -1,10 +1,20 @@
-"""Tests for cli.py — file discovery, error formatting, executor error handling."""
+"""Tests for cli.py — file discovery, var parsing, error formatting, main(), executor error handling."""
+
+import sys
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
-from pathlib import Path
 from jinja2 import Environment, TemplateNotFound, TemplateSyntaxError, UndefinedError, StrictUndefined
 
-from snow_ops.cli import _collect_sql_files, _print_template_error, _resolve_connections_toml
+from snow_ops.cli import _collect_sql_files, _parse_vars, _print_template_error, _resolve_connections_toml, main
+
+
+def _symlink_or_skip(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+    except OSError:
+        pytest.skip("symlinks not supported on this platform")
 
 
 # ── _collect_sql_files ─────────────────────────────────────────────────────────
@@ -74,6 +84,53 @@ class TestCollectSqlFiles:
         (scripts / "subdir").mkdir()
         with pytest.raises(SystemExit):
             _collect_sql_files(scripts, ["subdir"])
+
+    def test_dotdot_within_scripts_normalized(self, scripts):
+        (scripts / "sub").mkdir()
+        (scripts / "q.sql").write_text("SELECT 1")
+        result = _collect_sql_files(scripts, ["sub/../q.sql"])
+        assert result == [scripts / "q.sql"]
+
+    def test_symlinked_scripts_dir_keeps_path_under_link(self, tmp_path):
+        """Returned paths must stay under scripts_dir so callers can compute
+        project-relative labels even when scripts/ is a symlink."""
+        real = tmp_path / "real_scripts"
+        real.mkdir()
+        (real / "q.sql").write_text("SELECT 1")
+        link = tmp_path / "scripts"
+        _symlink_or_skip(link, real)
+        result = _collect_sql_files(link, ["q"])
+        assert result == [link / "q.sql"]
+
+
+# ── _parse_vars ────────────────────────────────────────────────────────────────
+
+class TestParseVars:
+    def test_none_returns_empty_dict(self):
+        assert _parse_vars(None) == {}
+
+    def test_single_pair(self):
+        assert _parse_vars(["env=prod"]) == {"env": "prod"}
+
+    def test_multiple_pairs(self):
+        assert _parse_vars(["a=1", "b=2"]) == {"a": "1", "b": "2"}
+
+    def test_value_may_contain_equals(self):
+        assert _parse_vars(["expr=a=b"]) == {"expr": "a=b"}
+
+    def test_empty_value_allowed(self):
+        assert _parse_vars(["key="]) == {"key": ""}
+
+    def test_last_duplicate_wins(self):
+        assert _parse_vars(["k=1", "k=2"]) == {"k": "2"}
+
+    def test_missing_separator_exits(self):
+        with pytest.raises(SystemExit):
+            _parse_vars(["no_separator"])
+
+    def test_empty_key_exits(self):
+        with pytest.raises(SystemExit):
+            _parse_vars(["=value"])
 
 
 # ── _print_template_error ──────────────────────────────────────────────────────
@@ -210,3 +267,114 @@ class TestGetConnectionErrors:
         from snow_ops.executor import get_connection
         with pytest.raises(EnvironmentError, match="SNOWFLAKE_PASSWORD"):
             get_connection()
+
+
+# ── main() ─────────────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def project(tmp_path):
+    (tmp_path / "scripts").mkdir()
+    (tmp_path / "scripts" / "q.sql").write_text("SELECT {{ n | default('1') }};")
+    return tmp_path
+
+
+def _run_main(monkeypatch, *argv: str) -> None:
+    monkeypatch.setattr(sys, "argv", ["snow-ops", *argv])
+    main()
+
+
+class TestMainDryRun:
+    def test_renders_and_prints_sql(self, project, monkeypatch, capsys):
+        _run_main(monkeypatch, "--project-dir", str(project), "--dry-run")
+        out = capsys.readouterr().out
+        assert "SELECT 1;" in out
+        assert "Dry run complete" in out
+
+    def test_var_overrides_default(self, project, monkeypatch, capsys):
+        _run_main(monkeypatch, "--project-dir", str(project), "--dry-run", "--var", "n=42")
+        out = capsys.readouterr().out
+        assert "SELECT 42;" in out
+
+    def test_audit_flag_prints_checksum(self, project, monkeypatch, capsys):
+        _run_main(monkeypatch, "--project-dir", str(project), "--dry-run", "--audit")
+        out = capsys.readouterr().out
+        assert "checksum:" in out
+
+    def test_invalid_var_exits(self, project, monkeypatch, capsys):
+        with pytest.raises(SystemExit):
+            _run_main(monkeypatch, "--project-dir", str(project), "--dry-run", "--var", "novalue")
+        assert "Invalid --var entry" in capsys.readouterr().out
+
+    def test_missing_scripts_dir_exits(self, tmp_path, monkeypatch, capsys):
+        with pytest.raises(SystemExit):
+            _run_main(monkeypatch, "--project-dir", str(tmp_path), "--dry-run")
+        assert "scripts/ directory not found" in capsys.readouterr().out
+
+    def test_named_script_in_symlinked_scripts_dir(self, tmp_path, monkeypatch, capsys):
+        """Regression: a symlinked scripts/ dir must not crash label computation."""
+        real = tmp_path / "real_scripts"
+        real.mkdir()
+        (real / "q.sql").write_text("SELECT 1")
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        _symlink_or_skip(proj / "scripts", real)
+        _run_main(monkeypatch, "--project-dir", str(proj), "--dry-run", "q.sql")
+        out = capsys.readouterr().out
+        assert "SELECT 1" in out
+        assert "Dry run complete" in out
+
+
+class TestMainExecution:
+    @pytest.fixture
+    def conn(self, monkeypatch):
+        monkeypatch.delenv("SNOWFLAKE_CONNECTION_NAME", raising=False)
+        conn = MagicMock()
+        conn.cursor.return_value.rowcount = 1
+        monkeypatch.setattr("snow_ops.cli.get_connection", lambda *a, **k: conn)
+        return conn
+
+    def test_happy_path_commits_and_closes(self, project, conn, monkeypatch, capsys):
+        _run_main(monkeypatch, "--project-dir", str(project))
+        out = capsys.readouterr().out
+        assert "1 file(s) executed" in out
+        conn.commit.assert_called_once()
+        conn.cursor.return_value.close.assert_called_once()
+        conn.close.assert_called_once()
+
+    def test_execution_error_rolls_back_and_exits_1(self, project, conn, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "snow_ops.cli.execute_statements", MagicMock(side_effect=RuntimeError("boom"))
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            _run_main(monkeypatch, "--project-dir", str(project))
+        assert exc_info.value.code == 1
+        assert "Execution failed: boom" in capsys.readouterr().out
+        conn.rollback.assert_called_once()
+        conn.close.assert_called_once()
+
+    def test_rollback_failure_does_not_mask_original_error(self, project, conn, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "snow_ops.cli.execute_statements", MagicMock(side_effect=RuntimeError("boom"))
+        )
+        conn.rollback.side_effect = RuntimeError("connection already closed")
+        with pytest.raises(SystemExit) as exc_info:
+            _run_main(monkeypatch, "--project-dir", str(project))
+        assert exc_info.value.code == 1
+        assert "Execution failed: boom" in capsys.readouterr().out
+
+    def test_close_failure_is_suppressed(self, project, conn, monkeypatch, capsys):
+        conn.cursor.return_value.close.side_effect = RuntimeError("already closed")
+        conn.close.side_effect = RuntimeError("already closed")
+        _run_main(monkeypatch, "--project-dir", str(project))
+        assert "1 file(s) executed" in capsys.readouterr().out
+
+    def test_keyboard_interrupt_exits_130(self, project, conn, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "snow_ops.cli.execute_statements", MagicMock(side_effect=KeyboardInterrupt)
+        )
+        with pytest.raises(SystemExit) as exc_info:
+            _run_main(monkeypatch, "--project-dir", str(project))
+        assert exc_info.value.code == 130
+        assert "Interrupted" in capsys.readouterr().out
+        conn.rollback.assert_called_once()
+        conn.close.assert_called_once()
