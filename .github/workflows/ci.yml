@@ -26,4 +26,4 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run tests
-        run: pytest --tb=short -q
+        run: pytest --tb=short -q --cov=snow_ops --cov-report=term-missing
