@@ -428,6 +428,10 @@ class TestMainExecution:
         _run_main(monkeypatch, "--project-dir", str(project))
         assert "1 file(s) executed" in capsys.readouterr().out
 
+    def test_default_mode_does_not_touch_autocommit(self, project, conn, monkeypatch):
+        _run_main(monkeypatch, "--project-dir", str(project))
+        conn.autocommit.assert_not_called()
+
     def test_keyboard_interrupt_exits_130(self, project, conn, monkeypatch, capsys):
         monkeypatch.setattr(
             "snow_ops.cli.execute_statements", MagicMock(side_effect=KeyboardInterrupt)
@@ -438,6 +442,63 @@ class TestMainExecution:
         assert "Interrupted" in capsys.readouterr().out
         conn.rollback.assert_called_once()
         conn.close.assert_called_once()
+
+
+class TestMainTransactionPerFile:
+    @pytest.fixture
+    def project2(self, tmp_path):
+        (tmp_path / "scripts").mkdir()
+        (tmp_path / "scripts" / "a.sql").write_text("SELECT 1;")
+        (tmp_path / "scripts" / "b.sql").write_text("SELECT 2;")
+        return tmp_path
+
+    @pytest.fixture
+    def conn(self, monkeypatch):
+        monkeypatch.delenv("SNOWFLAKE_CONNECTION_NAME", raising=False)
+        conn = MagicMock()
+        conn.cursor.return_value.rowcount = 1
+        monkeypatch.setattr("snow_ops.cli.get_connection", lambda *a, **k: conn)
+        return conn
+
+    def test_commits_after_each_file(self, project2, conn, monkeypatch, capsys):
+        _run_main(monkeypatch, "--project-dir", str(project2), "--transaction-per-file")
+        out = capsys.readouterr().out
+        assert "Committed  a.sql" in out
+        assert "Committed  b.sql" in out
+        assert "2 file(s) executed" in out
+        conn.autocommit.assert_called_once_with(False)
+        assert conn.commit.call_count == 2
+
+    def test_failure_stops_and_keeps_earlier_commits(self, project2, conn, monkeypatch, capsys):
+        calls = []
+
+        def fake_execute(cursor, statements):
+            calls.append(statements)
+            if len(calls) == 2:
+                raise RuntimeError("boom")
+
+        monkeypatch.setattr("snow_ops.cli.execute_statements", fake_execute)
+        with pytest.raises(SystemExit) as exc_info:
+            _run_main(monkeypatch, "--project-dir", str(project2), "--transaction-per-file")
+        assert exc_info.value.code == 1
+        out = capsys.readouterr().out
+        assert "Execution failed: boom" in out
+        assert "1 earlier file(s) remain committed" in out
+        assert len(calls) == 2  # b.sql failed; no further files attempted
+        conn.commit.assert_called_once()  # only a.sql committed
+        conn.rollback.assert_called_once()
+        conn.close.assert_called_once()
+
+    def test_failure_on_first_file_prints_no_committed_note(self, project2, conn, monkeypatch, capsys):
+        monkeypatch.setattr(
+            "snow_ops.cli.execute_statements", MagicMock(side_effect=RuntimeError("boom"))
+        )
+        with pytest.raises(SystemExit):
+            _run_main(monkeypatch, "--project-dir", str(project2), "--transaction-per-file")
+        out = capsys.readouterr().out
+        assert "remain committed" not in out
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called_once()
 
 
 class TestMainInputErrors:
