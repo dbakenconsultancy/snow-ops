@@ -155,6 +155,13 @@ def main() -> None:
         help="Template variable passed to every SQL file (repeatable).",
     )
     parser.add_argument(
+        "--transaction-per-file",
+        action="store_true",
+        help="Run each SQL file in its own transaction, committing after every file. "
+        "On failure only the failing file is rolled back; earlier files stay "
+        "committed and no further files are processed.",
+    )
+    parser.add_argument(
         "--audit",
         action="store_true",
         help="Enable deployment audit tracking. Scripts are skipped if their rendered "
@@ -251,7 +258,12 @@ def main() -> None:
         sys.exit(1)
 
     cursor = None
+    executed = 0
     try:
+        if args.transaction_per_file:
+            # Snowflake sessions autocommit by default; per-file transactions
+            # need explicit commit boundaries.
+            conn.autocommit(False)
         cursor = conn.cursor()
 
         audit_config: AuditConfig | None = None
@@ -267,7 +279,6 @@ def main() -> None:
                 sys.exit(1)
 
         skipped = 0
-        executed = 0
         for sql_file, sql in rendered.items():
             label = sql_file.relative_to(scripts_dir).as_posix()
             checksum = checksums.get(sql_file)
@@ -280,12 +291,17 @@ def main() -> None:
             statements = split_statements(sql)
             print(f"\nExecuting  {label}  ({len(statements)} statement(s))")
             execute_statements(cursor, statements)
-            executed += 1
 
             if audit_config is not None:
                 record_deployment(cursor, audit_config, label, checksum)
 
-        conn.commit()
+            if args.transaction_per_file:
+                conn.commit()
+                print(f"Committed  {label}")
+            executed += 1
+
+        if not args.transaction_per_file:
+            conn.commit()
         parts = [f"{executed} file(s) executed"]
         if skipped:
             parts.append(f"{skipped} skipped (already deployed)")
@@ -294,6 +310,8 @@ def main() -> None:
         with suppress(Exception):
             conn.rollback()
         print("\nInterrupted.")
+        if args.transaction_per_file and executed:
+            print(f"{executed} earlier file(s) remain committed.")
         sys.exit(130)
     except Exception as exc:
         # rollback/close can themselves fail on a dead connection — never let
@@ -301,6 +319,11 @@ def main() -> None:
         with suppress(Exception):
             conn.rollback()
         print(f"\nExecution failed: {exc}")
+        if args.transaction_per_file and executed:
+            print(
+                f"Stopping — the failing file was rolled back; "
+                f"{executed} earlier file(s) remain committed."
+            )
         sys.exit(1)
     finally:
         if cursor is not None:

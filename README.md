@@ -75,8 +75,8 @@ Run `snow-ops` from your project root, or point to it with `--project-dir`.
 
 ```
 snow-ops [--dry-run] [--project-dir DIR] [--connection NAME] [--connection-file-path FILE]
-         [--var KEY=VALUE ...] [--audit] [--audit-schema SCHEMA] [--audit-table TABLE] [--force]
-         [SCRIPT ...]
+         [--var KEY=VALUE ...] [--transaction-per-file] [--audit] [--audit-schema SCHEMA]
+         [--audit-table TABLE] [--force] [SCRIPT ...]
 ```
 
 | Flag | Description |
@@ -87,6 +87,7 @@ snow-ops [--dry-run] [--project-dir DIR] [--connection NAME] [--connection-file-
 | `--connection-file-path FILE` | Explicit path to `connections.toml`. Overrides the default lookup order (current directory, then `~/.snowflake/`). |
 | `--project-dir DIR` | Project root to use instead of the current directory. |
 | `--var KEY=VALUE` | Pass a template variable. Repeatable. |
+| `--transaction-per-file` | Run each SQL file in its own transaction. See [Per-file transactions](#per-file-transactions). |
 | `--audit` | Enable deployment audit tracking. See [Deployment audit](#deployment-audit). |
 | `--audit-schema SCHEMA` | Schema for the audit table (default: `public`). Requires `--audit`. |
 | `--audit-table TABLE` | Name of the audit table (default: `audit_log`). Requires `--audit`. |
@@ -108,6 +109,21 @@ snow-ops --var env=prod --var run_date=2024-06-01
 # Run from a different project directory
 snow-ops --project-dir /path/to/project --dry-run
 ```
+
+---
+
+## Per-file transactions
+
+By default all files run in the session's default mode and a single commit is issued after the last file. Pass `--transaction-per-file` to give each SQL file its own transaction:
+
+```bash
+snow-ops --transaction-per-file
+```
+
+- Autocommit is disabled for the session, and a commit is issued after each file completes successfully. With `--audit`, the file's audit record is part of the same transaction as the file itself.
+- If a statement fails, the failing file's transaction is rolled back, **no further files are processed**, and snow-ops exits with a non-zero status. Files that already committed stay committed — fix the failing file and rerun from there (with `--audit`, already-deployed files are skipped automatically).
+
+Note: Snowflake DDL statements (`CREATE`, `ALTER`, `DROP`, ...) implicitly commit the current transaction, so rollback protection applies to DML within a file, not to DDL.
 
 ---
 
